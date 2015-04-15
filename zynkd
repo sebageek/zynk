@@ -8,17 +8,27 @@ import threading
 import argparse
 import random
 import subprocess
+import tempfile
 import json
 import fcntl
+import hashlib
 import os
+import re
+import sys
+import base64
 
 # FIXME certificate generation (python-openssl  / clitool?)
-# FIXME path stuff for rsync?
 # FIXME clean up code, prints, etc.
-# FIXME use better ssl versions
+
+__VERSION__ = 0.1
+DEFAULT_PORT = 9923
+
 
 class RClient(threading.Thread):
 	password = None
+	certpath = None
+	keypath = None
+	sslMethod = None
 
 	def __init__(self, sock, addr):
 		threading.Thread.__init__(self)
@@ -55,7 +65,7 @@ class RClient(threading.Thread):
 	def _talkToClient(self):
 
 		# do ssl handshake
-		sslSock = ssl.wrap_socket(self._sock, certfile="cert.pem", keyfile="key.pem", server_side=True, ssl_version=ssl.PROTOCOL_SSLv23)
+		sslSock = ssl.wrap_socket(self._sock, certfile=self.certpath, keyfile=self.keypath, server_side=True, ssl_version=self.sslMethod)
 		self._sslSock = sslSock
 
 		# ask for / check password
@@ -131,22 +141,133 @@ class RClient(threading.Thread):
 
 def _parser():
 	parser = argparse.ArgumentParser(prog="zynkd")
-	parser.add_argument("-p", "--port", default=2223, type=int, help="Port to listen on for zynk connections.")
+	parser.add_argument("-p", "--port", default=DEFAULT_PORT, type=int, help="Port to listen on for zynk connections.")
 	parser.add_argument("-P", "--password", default=None, type=str, help="Password to use for authenticating clients. If not specified, one will be generated for you.")
 
 	# FIXME: use these keys ;)
-	parser.add_argument('-o', '--snakeoil', default=None, type=str, help="Use snakeoil certificates, often present on the system")
+	parser.add_argument('-o', '--snakeoil', default=False, action="store_true", help="Use snakeoil certificates, often present on the system")
 
 	parser.add_argument('-k', '--key', default=None, type=str, help="Keyfile to use for SSL. If no cert is given with --cert the keyfile will also be searched for a cert")
 	parser.add_argument('-c', '--cert', default=None, type=str, help="Certfile to use for SSL")
 
 	return parser
 
+def createTemp():
+	path = tempfile.mktemp(prefix="zynkcert-", suffix=".pem")
+	f = file(path, "w")
+	f.close()
+	os.chmod(path, 0700)
+
+	return path
+
+def genCert(certpath, keypath):
+	# try openssl
+	opensslPath = ''
+	try:
+		opensslPath = subprocess.check_output(["which", "openssl"]).strip()
+	except subprocess.CalledProcessError:
+		opensslPath = ''
+
+	if opensslPath:
+		# we can use openssl
+		print("Generating certificate using openssl...")
+		# openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 3650 -nodes -subj '/C=DE/ST=Berlin/L=Berlin/O=Testorg/OU=Networks/CN=XXXXXXXXXXXXX'
+		cmd = ['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-keyout', keypath, '-out', certpath, '-days', '3650', '-nodes', '-subj', "/C=DE/ST=Berlin/L=Berlin/O=Seba/OU=zynkd/CN=zynkhost"]
+		ret = subprocess.call(cmd)
+		if ret != 0:
+			print("Certificate generation failed, OpenSSL returned %d (cmd was: %s)" % (ret, " ".join(cmd)))
+	else:
+		havePySSL = False
+		try:
+			from OpenSSL import SSL, crypto
+			SSL, crypto
+			havePySSL = True
+		except ImportError:
+			pass
+
+		if havePySSL:
+			# we can use OpenSSL python bindings
+			pass
+			# FIXME: write ssl cert creation
+		else:
+			# no cert generation possible. inform user about install options + pregenerated certs (specify own or snakeoil)
+			pass
+
+def getPemFingerprint(certpath):
+	cert = open(certpath, "r").read()
+
+	m = re.search("^-----BEGIN CERTIFICATE-----\n(?P<cert>.*?)\n-----END CERTIFICATE-----", cert, re.DOTALL | re.MULTILINE)
+	if not m:
+		print("Could not find BEGIN CERTIFICATE in %s, quitting" % certpath)
+		sys.exit(1)
+
+	certdata = base64.b64decode(m.group(1))
+
+	certPrint = hashlib.sha1()
+	certPrint.update(certdata)
+	certPrintHex = certPrint.hexdigest()
+	certPrintStr = ":".join([certPrintHex[2*i:2*i+2].upper() for i in range(len(certPrintHex) / 2)])
+
+	b64print = base64.b64encode(certPrint.digest())
+
+	return certPrintStr, b64print
+
+def getIPs(listenIPv4=True, listenIPv6=True):
+	""" Get IPs from all interfaces via ip or ifconfig. """
+	# ip and ifconfig sometimes are located in /sbin/
+	os.environ['PATH'] += ':/sbin:/usr/sbin'
+	proc = subprocess.Popen(r"ip addr|" + \
+				             "sed -n -e 's/.*inet6\{0,1\} \([0-9.a-fA-F:]\+\).*/\\1/ p'|" + \
+				             "grep -v '^fe80\|^127.0.0.1\|^::1'", \
+				             shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+	if proc.wait() != 0:
+		# ip failed somehow, falling back to ifconfig
+		oldLang = os.environ.get("LC_ALL", None)
+		os.environ['LC_ALL'] = "C"
+		proc = subprocess.Popen(r"ifconfig|" + \
+					             "sed -n 's/.*inet6\{0,1\}\( addr:\)\{0,1\} \{0,1\}\([0-9a-fA-F.:]*\).*/" + \
+					             "\\2/p'|" + \
+					             "grep -v '^fe80\|^127.0.0.1\|^::1'", \
+					             shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+		if oldLang:
+			os.environ['LC_ALL'] = oldLang
+		else:
+			del(os.environ['LC_ALL'])
+		if proc.wait() != 0:
+			# we couldn't find any ip address
+			proc = None
+	if proc:
+		ips = proc.stdout.read().strip().split("\n")
+
+		# filter out ips we are not listening on
+		if not listenIPv6:
+			ips = filter(lambda ip: ":" not in ip, ips)
+		if not listenIPv4:
+			ips = filter(lambda ip: "." not in ip, ips)
+
+		return ips
+	return None
+
+
+
 
 def main():
 	# parse args
 	parser = _parser()
 	args = parser.parse_args()
+
+	if args.cert and not args.key:
+		parser.error("You cannot specify a --cert without a --key. See --help for more information")
+
+	# select ssl version
+	if hasattr(ssl, "PROTOCOL_TLSv1_2"):
+		RClient.sslMethod = ssl.PROTOCOL_TLSv1_2
+	elif hasattr(ssl, "PROTOCOL_TLSv1"):
+		RClient.sslMethod = ssl.PROTOCOL_TLSv1
+	else:
+		# only SSLv23 available
+		print("Warning: Only SSLv2/SSLv3 is available, connection might be insecure.")
+		RClient.sslMethod = ssl.PROTOCOL_SSLv23
 
 	# get a password
 	password = None
@@ -160,29 +281,87 @@ def main():
 
 	# TODO: generate certificates either with openssl or pyssl, whatever is there
 	# put them into tempfiles
+	certpath = None
+	keypath = None
+	certsGenerated = False
 
-	srv = socket.socket()
-	srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-	port = 2223
-	srv.bind(("", port))
-	srv.listen(2)
+	# big try with finally statement to ensure that tempfiles are deleted
+	try:
+		if args.key:
+			keypath = args.keypath
+			if args.cert:
+				certpath = args.certpath
+			else:
+				certpath = args.keypath
+		elif args.snakeoil:
+			certpath = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
+			keypath = "/etc/ssl/private/ssl-cert-snakeoil.key"
+		else:
+			# generate some certs
+			certsGenerated = True
 
-	clients = []
+			certpath = createTemp()
+			keypath = createTemp()
 
-	print("Running server on port", port)
-	print("Password is: ", password)
-	quit = False
-	while not quit:
-		(socks, _, _) = select.select([srv], [], [], None)
-		
-		if srv in socks:
-			sock, addr = srv.accept()
-			print("New client, connceting from %s:%s :)" % addr)
+			genCert(certpath, keypath)
 
-			client = RClient(sock, addr)
-			clients.append(client)
+		RClient.certpath = certpath
+		RClient.keypath = keypath
 
-			client.start()
+		## get fingerprint of cert
+		fingerprintSHA1, fingerprintb64 = getPemFingerprint(certpath)
+
+		srv = socket.socket()
+		srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+		port = args.port
+		srv.bind(("", port))
+		srv.listen(2)
+
+		clients = []
+
+		# print information about server
+		print("Zynk %s started" % __VERSION__)
+		print("    Port:               ", port)
+		print("    Fingerprint SHA1:   ", fingerprintSHA1)
+		print("    Fingerprint base64: ", fingerprintb64)
+		print("    Password:           ", password)
+		print()
+
+		# print hosts / ip addresses
+		targets = [socket.getfqdn()] + getIPs()
+		portExtra = ""
+		if args.port != DEFAULT_PORT:
+			portExtra = "--zp %d" % args.port
+		for target in targets:
+			print("    zynk %s--zf %s --zpw %s --zh %s " % (portExtra, fingerprintb64, password, target)) 
+
+		print()
+		print("    Note: With --zh you can specify your remote just as remote:")
+		print()
+
+		# run server
+		quit = False
+		while not quit:
+			(socks, _, _) = select.select([srv], [], [], None)
+
+			if srv in socks:
+				sock, addr = srv.accept()
+				print("New client, connceting from %s:%s :)" % addr)
+
+				client = RClient(sock, addr)
+				clients.append(client)
+
+				client.start()
+	except KeyboardInterrupt:
+		print("Thanks for sharing!")
+	finally:
+		# delete certificates, if autogenerated
+		print("Cleaning up certs")
+		if certsGenerated:
+			for f in (certpath, keypath):
+				print("Certpath", f)
+				if f and os.path.exists(f):
+					os.unlink(f)
 
 if __name__ == '__main__':
 	main()
