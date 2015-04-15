@@ -12,9 +12,10 @@ import json
 import fcntl
 import os
 
-# FIXME certificate generation
+# FIXME certificate generation (python-openssl  / clitool?)
 # FIXME path stuff for rsync?
 # FIXME clean up code, prints, etc.
+# FIXME use better ssl versions
 
 class RClient(threading.Thread):
 	password = None
