@@ -5,7 +5,6 @@ import base64
 import pipes
 import socket
 import argparse
-import subprocess
 import sys
 import ssl
 import os
@@ -36,9 +35,6 @@ def _parser():
 	parser.add_argument("--help", default=False, action="store_true", help="Show this help message and exit")
 
 	return parser
-
-# FIXME: Extra parser for --zync-connect mode (one positional for host, parse out zynk args? or else, parse only zynk args, rest is host + cmd)
-# FIXME: Add options --zpw/--zynk-password and --zf/--zynk-fingerprint
 
 def _readline(sock, maxChars):
 	data = ""
@@ -73,8 +69,14 @@ def main():
 			print("I would connect to host %s:%s with command %s" % (host, port, rsyncCmd), file=sys.stderr)
 
 		sock = socket.socket()
-		sock.connect((host, port))
-		sslSock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_SSLv23)
+		sslSock = None
+		try:
+			sock.connect((host, port))
+			sslSock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_SSLv23)
+		except Exception as e:
+			print("Could not connect to remote host: %s\n" % e, file=sys.stderr)
+			sys.exit(6)
+
 		binCert = sslSock.getpeercert(binary_form=True)
 		certPrint = hashlib.sha1()
 		certPrint.update(binCert)
@@ -168,6 +170,8 @@ def main():
 		print("\nThank you for uzing zynk. Guten Tag.", file=sys.stderr)
 	else:
 		print("Welcome to zynk!\n")
+
+		# create zync "rsh" command
 		scriptPath = os.path.join(os.getcwd(), sys.argv[0])
 		zynkCmdList = [scriptPath, "--zynk-connect", "--zynk-port", args.zynk_port]
 		if args.zynk_password:
@@ -179,13 +183,15 @@ def main():
 		if args.zynk_verbose:
 			zynkCmdList.append("--zynk-verbose")
 		zynkCmd = " ".join([pipes.quote(str(arg)) for arg in zynkCmdList])
+
+		#create rsync command
 		rsyncCmd = ["rsync", "-e", zynkCmd] + rsyncArgs
 		rsyncCmdStr = " ".join([pipes.quote(str(arg)) for arg in rsyncCmd])
+
 		if args.zynk_debug:
 			print(" --> Calling rsync, command is", rsyncCmdStr)
 
 		os.execve("/usr/bin/rsync", rsyncCmd, {})
-	subprocess, socket
 
 if __name__ == '__main__':
 	main()
