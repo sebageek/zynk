@@ -174,7 +174,7 @@ def main():
 	else:
 		print("Welcome to zynk!\n")
 
-		# create zync "rsh" command
+		# create zynk "rsh" command
 		scriptPath = os.path.join(os.getcwd(), sys.argv[0])
 		zynkCmdList = [scriptPath, "--zynk-connect", "--zynk-port", args.zynk_port]
 		if args.zynk_password:

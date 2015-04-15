@@ -53,9 +53,12 @@ class RClient(threading.Thread):
 		return data.strip()
 
 	def _talkToClient(self):
+
+		# do ssl handshake
 		sslSock = ssl.wrap_socket(self._sock, certfile="cert.pem", keyfile="key.pem", server_side=True, ssl_version=ssl.PROTOCOL_SSLv23)
 		self._sslSock = sslSock
 
+		# ask for / check password
 		sslSock.send("50 Password please!\n")
 		password = self._readline(256)
 		if password != self.password:
@@ -63,22 +66,25 @@ class RClient(threading.Thread):
 			sslSock.close()
 			return
 
+		# ask for / check rsync command
 		sslSock.send("20 OK, send command\n")
 		cmd = self._readline(2048)
 		cmdlist = None
 		try:
 			cmdlist = json.loads(cmd.strip())
 
+			# ensure command is a list
 			if type(cmdlist) != list:
 				raise ValueError()
 
-			# make sure everything is a string
+			# make sure everything in the list is a string
 			cmdlist = [str(l) for l in cmdlist]
 
+			# commands needs to have at least one argument
 			if len(cmdlist) < 2:
 				raise ValueError()
 		except:
-			print("Client send garbage command")
+			print("Client %s:%s send garbage command" % self._addr)
 			sslSock.send("52 Could not parse json command\n")
 			sslSock.close()
 			return
@@ -88,16 +94,13 @@ class RClient(threading.Thread):
 			sslSock.close()
 			return
 
-
+		# now we can start rsync
 		sslSock.send("20 OK, switching to rsync\n")
 		print("Running", cmdlist)
 
-		#cmdlist = ["strace"] + cmdlist
-		#proc = subprocess.Popen(cmdlist, stdin=sslSock, stdout=sslSock)
-		#proc = subprocess.Popen(cmdlist, stdin=f, stdout=f)
-
 		proc = subprocess.Popen(cmdlist, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
+		# make stdout of rsync nonblocking
 		pstdfd = proc.stdout.fileno()
 		fl = fcntl.fcntl(pstdfd, fcntl.F_GETFL)
 		fcntl.fcntl(pstdfd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
@@ -132,8 +135,10 @@ def _parser():
 	parser.add_argument("-P", "--password", default=None, type=str, help="Password to use for authenticating clients. If not specified, one will be generated for you.")
 
 	# FIXME: use these keys ;)
-	parser.add_argument('--key', default=None, type=str, help="Keyfile to use for SSL. If no cert is given with --cert the keyfile will also be searched for a cert")
-	parser.add_argument('--cert', default=None, type=str, help="Certfile to use for SSL")
+	parser.add_argument('-o', '--snakeoil', default=None, type=str, help="Use snakeoil certificates, often present on the system")
+
+	parser.add_argument('-k', '--key', default=None, type=str, help="Keyfile to use for SSL. If no cert is given with --cert the keyfile will also be searched for a cert")
+	parser.add_argument('-c', '--cert', default=None, type=str, help="Certfile to use for SSL")
 
 	return parser
 
@@ -152,6 +157,9 @@ def main():
 		password = "".join([random.choice(chars) for i in range(20)])
 
 	RClient.password = password
+
+	# TODO: generate certificates either with openssl or pyssl, whatever is there
+	# put them into tempfiles
 
 	srv = socket.socket()
 	srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
