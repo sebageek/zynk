@@ -105,7 +105,7 @@ def main():
 
 		msg = _readline(sslSock, 256)
 		if args.zynk_debug:
-			print("Protocol:", msg, file=sys.stderr)
+			print(" >> Protocol:", msg, file=sys.stderr)
 		if not msg.startswith("50 "):
 			print("Error: Server did not challenge us for a password\n", file=sys.stderr)
 			sys.exit(4)
@@ -144,7 +144,7 @@ def main():
 		fl = fcntl.fcntl(stdinfd, fcntl.F_GETFL)
 		fcntl.fcntl(stdinfd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
-		print()
+		print("", file=sys.stderr)
 
 		quit = False
 		while not quit:
