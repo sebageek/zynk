@@ -13,11 +13,11 @@ import json
 import fcntl
 import hashlib
 import os
+import time
 import re
 import sys
 import base64
 
-# FIXME certificate generation (python-openssl  / clitool?)
 # FIXME clean up code, prints, etc.
 
 __VERSION__ = 0.1
@@ -179,19 +179,58 @@ def genCert(certpath, keypath):
 	else:
 		havePySSL = False
 		try:
-			from OpenSSL import SSL, crypto
-			SSL, crypto
+			import OpenSSL
+			OpenSSL
 			havePySSL = True
 		except ImportError:
 			pass
 
 		if havePySSL:
 			# we can use OpenSSL python bindings
-			pass
-			# FIXME: write ssl cert creation
+			print("Generating certificate using openssl python bindings...")
+			pkey = OpenSSL.crypto.PKey()
+			pkey.generate_key(OpenSSL.crypto.TYPE_RSA, 2048)
+
+			req = OpenSSL.crypto.X509Req()
+			subj = req.get_subject()
+			subj.C = "DE"
+			subj.ST = "Berlin"
+			subj.L = "Berlin"
+			subj.O = "Seba"
+			subj.OU = "zynkd"
+			subj.CN = "zynkhost"
+
+			req.set_pubkey(pkey)
+			req.sign(pkey, "sha1")
+
+			cert = OpenSSL.crypto.X509()
+			cert.set_serial_number(int(time.time()))
+			cert.gmtime_adj_notBefore(0)
+			cert.gmtime_adj_notAfter(365*24*60*60)
+			cert.set_issuer(req.get_subject())
+			cert.set_subject(req.get_subject())
+			cert.set_pubkey(req.get_pubkey())
+			cert.sign(pkey, "sha1")
+
+			f = open(certpath, "w")
+			f.write(OpenSSL.crypto.dump_certificate(OpenSSL.crypto.FILETYPE_PEM, cert))
+			f.close()
+
+			f = open(keypath, "w")
+			f.write(OpenSSL.crypto.dump_privatekey(OpenSSL.crypto.FILETYPE_PEM, pkey))
+			f.close()
+
 		else:
 			# no cert generation possible. inform user about install options + pregenerated certs (specify own or snakeoil)
-			pass
+			print("Error: No certficate found and no method to generate one is available")
+			print("       Your options for crypto are:")
+			print()
+			print("       - specify a certificate/key with --cert/--key")
+			print("       - install openssl (the cli tool)")
+			print("       - install python-openssl")
+			print("       - use pregenerated snakeoil certificates, if present (--snakeoil)")
+
+			sys.exit(1)
 
 def getPemFingerprint(certpath):
 	cert = open(certpath, "r").read()
@@ -247,8 +286,6 @@ def getIPs(listenIPv4=True, listenIPv6=True):
 
 		return ips
 	return None
-
-
 
 
 def main():
