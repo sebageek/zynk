@@ -28,6 +28,7 @@ def _parser():
 
 	parser.add_argument('--zynk-password', '--zpw', default=None, type=str, help="Use this as password (no prompt will be displayed then)")
 	parser.add_argument('--zynk-fingerprint', '--zf', default=None, type=str, help="Use this to check the fingerprint (no prompt will be displayed then)")
+	parser.add_argument('--zynk-host', '--zh', default=None, type=str, help="Override host specified by rsync/on rsync commandline (useful for command copypasting)")
 	parser.add_argument('--zynk-port', '--zp', default=9923, type=int, help="Port of remote zynk server")
 	parser.add_argument('--zynk-verbose', default=False, action="store_true", help="Be more verbose about connection state / zsync connection")
 	parser.add_argument('--zynk-debug', default=False, action="store_true", help="Be more verbose about connection state / zsync connection")
@@ -62,6 +63,8 @@ def main():
 			sys.exit(1)
 
 		host = rsyncArgs[0]
+		if args.zynk_host:
+			host = args.zynk_host
 		port = args.zynk_port
 		rsyncCmd = rsyncArgs[1:]
 
@@ -176,6 +179,8 @@ def main():
 		zynkCmdList = [scriptPath, "--zynk-connect", "--zynk-port", args.zynk_port]
 		if args.zynk_password:
 			zynkCmdList.extend(["--zynk-password", args.zynk_password])
+		if args.zynk_host:
+			zynkCmdList.extend(["--zynk-host", args.zynk_host])
 		if args.zynk_fingerprint:
 			zynkCmdList.extend(["--zynk-fingerprint", args.zynk_fingerprint])
 		if args.zynk_debug:
