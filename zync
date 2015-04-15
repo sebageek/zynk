@@ -1,0 +1,191 @@
+#!/usr/bin/env python2
+from __future__ import print_function
+
+import base64
+import pipes
+import socket
+import argparse
+import subprocess
+import sys
+import ssl
+import os
+import hashlib
+import getpass
+import json
+import select
+import fcntl
+
+def _parser():
+	parser = argparse.ArgumentParser(
+			prog="zynk",
+			description="Rsync wrapper with SSL + Auth",
+			epilog="Time to zynk zom viles, mein herr",
+			add_help=False, # we need -h for human readable (rsync option)
+	)
+	parser.add_help = False
+
+	# internal flag
+	parser.add_argument('--zynk-connect', default=False, action="store_true", help=argparse.SUPPRESS)
+
+	parser.add_argument('--zynk-password', '--zpw', default=None, type=str, help="Use this as password (no prompt will be displayed then)")
+	parser.add_argument('--zynk-fingerprint', '--zf', default=None, type=str, help="Use this to check the fingerprint (no prompt will be displayed then)")
+	parser.add_argument('--zynk-port', '--zp', default=9923, type=int, help="Port of remote zynk server")
+	parser.add_argument('--zynk-verbose', default=False, action="store_true", help="Be more verbose about connection state / zsync connection")
+	parser.add_argument('--zynk-debug', default=False, action="store_true", help="Be more verbose about connection state / zsync connection")
+	parser.add_argument("--rsync-help", default=False, action="store_true", help="Show rsync help (or you could just call rsync by yourself")
+	parser.add_argument("--help", default=False, action="store_true", help="Show this help message and exit")
+
+	return parser
+
+# FIXME: Extra parser for --zync-connect mode (one positional for host, parse out zynk args? or else, parse only zynk args, rest is host + cmd)
+# FIXME: Add options --zpw/--zynk-password and --zf/--zynk-fingerprint
+
+def _readline(sock, maxChars):
+	data = ""
+	for i in range(maxChars):
+		c = sock.recv(1)
+		data += c
+		if c == '\n':
+			break
+
+	return data
+
+
+def main():
+	# parse args
+	parser = _parser()
+	args, rsyncArgs = parser.parse_known_args()
+
+	if args.help:
+		parser.print_help()
+		sys.exit(0)
+
+	if args.zynk_connect:
+		if len(rsyncArgs) < 3:
+			print("Error: Arguments have to be at least <host> <command> <args> to run anything", file=sys.stderr)
+			sys.exit(1)
+
+		host = rsyncArgs[0]
+		port = args.zynk_port
+		rsyncCmd = rsyncArgs[1:]
+
+		if args.zynk_debug:
+			print("I would connect to host %s:%s with command %s" % (host, port, rsyncCmd), file=sys.stderr)
+
+		sock = socket.socket()
+		sock.connect((host, port))
+		sslSock = ssl.wrap_socket(sock, ssl_version=ssl.PROTOCOL_SSLv23)
+		binCert = sslSock.getpeercert(binary_form=True)
+		certPrint = hashlib.sha1()
+		certPrint.update(binCert)
+		certPrintHex = certPrint.hexdigest()
+		certPrintStr = ":".join([certPrintHex[2*i:2*i+2].upper() for i in range(len(certPrintHex) / 2)])
+		b64Print = base64.b64encode(certPrint.digest())
+		print("SHA1", certPrintStr, "base64", b64Print, file=sys.stderr)
+
+		# we need to read from /dev/tty, else rsync would not allow us...
+		stdin = sys.stdin
+		sys.stdin = open('/dev/tty', 'r')
+
+		if args.zynk_fingerprint:
+			if args.zynk_fingerprint not in (certPrintStr, b64Print):
+				print("Fingerprint did NOT match SHA1/base64 fingerprint, aborting!\n", file=sys.stderr)
+				sys.exit(2)
+		else:
+			print("Accept fingerprint? [y/N] ", file=sys.stderr, end='')
+			inp = raw_input()
+			if inp.lower() != "y":
+				print("Fingerprint NOT accepted, aborting!\n", file=sys.stderr)
+				sys.exit(2)
+
+		msg = _readline(sslSock, 256)
+		if args.zynk_debug:
+			print("Protocol:", msg, file=sys.stderr)
+		if not msg.startswith("50 "):
+			print("Error: Server did not challenge us for a password\n", file=sys.stderr)
+			sys.exit(4)
+
+		password = args.zynk_password
+		if not password:
+			password = getpass.getpass("Password: ")
+
+		if not password:
+			print("No password, no service\n", file=sys.stderr)
+			sys.exit(3)
+
+		sslSock.send(password + "\n")
+
+		msg = _readline(sslSock, 256)
+		if args.zynk_debug:
+			print(" >> Protocol:", msg, file=sys.stderr)
+		if not msg.startswith("20 "):
+			print("Error: Authentication error (server said '%s')" % msg.strip(), file=sys.stderr)
+			sys.exit(4)
+
+		# send command
+		# shell escaping sucks, json is easy and available
+		sslSock.send(json.dumps(rsyncCmd) + "\n")
+
+		msg = _readline(sslSock, 256)
+		if args.zynk_debug:
+			print(" >> Protocol:", msg, file=sys.stderr)
+		if not msg.startswith("20 "):
+			print("Error: Command could not be understood (server said '%s')" % msg.strip(), file=sys.stderr)
+			sys.exit(5)
+
+		sys.stdin.close()
+		sys.stdin = stdin
+		stdinfd = sys.stdin.fileno()
+		fl = fcntl.fcntl(stdinfd, fcntl.F_GETFL)
+		fcntl.fcntl(stdinfd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
+
+		print()
+
+		quit = False
+		while not quit:
+			if args.zynk_debug:
+				print(" --? Waiting for data..", file=sys.stderr)
+			(socks, _, _) = select.select([sys.stdin, sslSock], [], [])
+			for sock in socks:
+				if sock == sys.stdin:
+					data = sys.stdin.read()
+					if args.zynk_debug:
+						print(" >> Found bytes on STDIN", repr(data), file=sys.stderr)
+					if data == '':
+						quit = True
+						break
+					sslSock.send(data)
+				elif sock == sslSock:
+					data = sslSock.recv(10240)
+					if args.zynk_debug:
+						print(" >> Found bytes on socket", repr(data), file=sys.stderr)
+					if data == '':
+						quit = True
+						break
+					sys.stdout.write(data)
+					sys.stdout.flush()
+
+		print("\nThank you for uzing zynk. Guten Tag.", file=sys.stderr)
+	else:
+		print("Welcome to zynk!\n")
+		scriptPath = os.path.join(os.getcwd(), sys.argv[0])
+		zynkCmdList = [scriptPath, "--zynk-connect", "--zynk-port", args.zynk_port]
+		if args.zynk_password:
+			zynkCmdList.extend(["--zynk-password", args.zynk_password])
+		if args.zynk_fingerprint:
+			zynkCmdList.extend(["--zynk-fingerprint", args.zynk_fingerprint])
+		if args.zynk_debug:
+			zynkCmdList.append("--zynk-debug")
+		if args.zynk_verbose:
+			zynkCmdList.append("--zynk-verbose")
+		zynkCmd = " ".join([pipes.quote(str(arg)) for arg in zynkCmdList])
+		rsyncCmd = ["rsync", "-e", zynkCmd] + rsyncArgs
+		rsyncCmdStr = " ".join([pipes.quote(str(arg)) for arg in rsyncCmd])
+		if args.zynk_debug:
+			print(" --> Calling rsync, command is", rsyncCmdStr)
+
+		os.execve("/usr/bin/rsync", rsyncCmd, {})
+	subprocess, socket
+
+if __name__ == '__main__':
+	main()
