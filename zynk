@@ -15,6 +15,7 @@ import ssl
 import os
 import hashlib
 import getpass
+import subprocess
 import json
 import select
 import fcntl
@@ -63,6 +64,10 @@ def main():
 
 	if args.help:
 		parser.print_help()
+		sys.exit(0)
+
+	if args.rsync_help:
+		subprocess.call(["rsync", "--help"])
 		sys.exit(0)
 
 	if args.zynk_connect:
