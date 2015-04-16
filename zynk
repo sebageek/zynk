@@ -113,7 +113,12 @@ def main():
 				sys.exit(2)
 		else:
 			print("Accept fingerprint? [y/N] ", file=sys.stderr, end='')
-			inp = raw_input()
+			inp = None
+			try:
+				inp = raw_input()
+			except KeyboardInterrupt:
+				print("Aborted", file=sys.stderr)
+				sys.exit(8)
 			if inp.lower() != "y":
 				print("Fingerprint NOT accepted, aborting!\n", file=sys.stderr)
 				sys.exit(2)
@@ -127,7 +132,11 @@ def main():
 
 		password = args.zynk_password
 		if not password:
-			password = getpass.getpass("Password: ")
+			try:
+				password = getpass.getpass("Password: ")
+			except KeyboardInterrupt:
+				print("Aborted", file=sys.stderr)
+				sys.exit(8)
 
 		if not password:
 			print("No password, no service\n", file=sys.stderr)
