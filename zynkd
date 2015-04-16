@@ -158,6 +158,7 @@ class RClient(threading.Thread):
 
 		proc.wait()
 		sslSock.close()
+		print(" >> %s:%s disconnected" % self._addr)
 
 def _parser():
 	parser = argparse.ArgumentParser(prog="zynkd")
