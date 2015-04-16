@@ -14,6 +14,8 @@ import json
 import select
 import fcntl
 
+__VERSION__ = "0.1"
+
 def _parser():
 	parser = argparse.ArgumentParser(
 			prog="zynk",
@@ -34,6 +36,7 @@ def _parser():
 	parser.add_argument('--zynk-debug', default=False, action="store_true", help="Be more verbose about connection state / zsync connection")
 	parser.add_argument("--rsync-help", default=False, action="store_true", help="Show rsync help (or you could just call rsync by yourself")
 	parser.add_argument("--help", default=False, action="store_true", help="Show this help message and exit")
+	parser.add_argument('--version', action='version', version='%(prog)s ' + __VERSION__)
 
 	return parser
 
@@ -86,14 +89,16 @@ def main():
 		certPrintHex = certPrint.hexdigest()
 		certPrintStr = ":".join([certPrintHex[2*i:2*i+2].upper() for i in range(len(certPrintHex) / 2)])
 		b64Print = base64.b64encode(certPrint.digest())
-		print("SHA1", certPrintStr, "base64", b64Print, file=sys.stderr)
+		print("Fingerprint SHA1:", certPrintStr, "base64:", b64Print, file=sys.stderr)
 
 		# we need to read from /dev/tty, else rsync would not allow us...
 		stdin = sys.stdin
 		sys.stdin = open('/dev/tty', 'r')
 
 		if args.zynk_fingerprint:
-			if args.zynk_fingerprint not in (certPrintStr, b64Print):
+			if args.zynk_fingerprint in (certPrintStr, b64Print):
+				print("Fingerprint matched", file=sys.stderr)
+			else:
 				print("Fingerprint did NOT match SHA1/base64 fingerprint, aborting!\n", file=sys.stderr)
 				sys.exit(2)
 		else:
