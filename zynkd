@@ -349,11 +349,11 @@ def main():
 	# big try with finally statement to ensure that tempfiles are deleted
 	try:
 		if args.key:
-			keypath = args.keypath
+			keypath = args.key
 			if args.cert:
-				certpath = args.certpath
+				certpath = args.cert
 			else:
-				certpath = args.keypath
+				certpath = args.key
 		elif args.snakeoil:
 			certpath = "/etc/ssl/certs/ssl-cert-snakeoil.pem"
 			keypath = "/etc/ssl/private/ssl-cert-snakeoil.key"
