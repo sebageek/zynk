@@ -170,6 +170,7 @@ def main():
 
 		print("", file=sys.stderr)
 
+		sslSock.setblocking(0)
 		quit = False
 		while not quit:
 			if args.zynk_debug:
@@ -183,9 +184,9 @@ def main():
 					if data == '':
 						quit = True
 						break
-					sslSock.send(data)
+					sslSock.sendall(data)
 				elif sock == sslSock:
-					data = sslSock.recv(10240)
+					data = sslSock.recv(4096)
 					if args.zynk_debug:
 						print(" >> Found bytes on socket", repr(data), file=sys.stderr)
 					if data == '':

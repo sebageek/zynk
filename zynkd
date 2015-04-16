@@ -129,6 +129,7 @@ class RClient(threading.Thread):
 		fl = fcntl.fcntl(pstdfd, fcntl.F_GETFL)
 		fcntl.fcntl(pstdfd, fcntl.F_SETFL, fl | os.O_NONBLOCK)
 
+		sslSock.setblocking(0)
 		quit = False
 		while proc.poll() == None and not quit:
 			if self.debug:
@@ -144,15 +145,16 @@ class RClient(threading.Thread):
 					if data == '':
 						quit = True
 						break
-					sslSock.send(data)
+					sslSock.sendall(data)
 				elif sock == sslSock:
-					data = sslSock.recv(10240)
+					data = sslSock.recv(4096)
 					if self.debug:
 						print(" <== Sending data to process", repr(data))
 					if data == '':
 						quit = True
 						break
 					proc.stdin.write(data)
+					proc.stdin.flush()
 
 		proc.wait()
 		sslSock.close()
