@@ -211,7 +211,7 @@ def main():
 		if args.zynk_debug:
 			print(" --> Calling rsync, command is", rsyncCmdStr)
 
-		os.execve("/usr/bin/rsync", rsyncCmd, {})
+		os.execve("/usr/bin/rsync", rsyncCmd, os.environ)
 
 if __name__ == '__main__':
 	main()
