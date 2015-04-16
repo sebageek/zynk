@@ -172,28 +172,35 @@ def main():
 
 		sslSock.setblocking(0)
 		quit = False
-		while not quit:
-			if args.zynk_debug:
-				print(" --? Waiting for data..", file=sys.stderr)
-			(socks, _, _) = select.select([sys.stdin, sslSock], [], [])
-			for sock in socks:
-				if sock == sys.stdin:
-					data = sys.stdin.read()
-					if args.zynk_debug:
-						print(" >> Found bytes on STDIN", repr(data), file=sys.stderr)
-					if data == '':
-						quit = True
-						break
-					sslSock.sendall(data)
-				elif sock == sslSock:
-					data = sslSock.recv(4096)
-					if args.zynk_debug:
-						print(" >> Found bytes on socket", repr(data), file=sys.stderr)
-					if data == '':
-						quit = True
-						break
-					sys.stdout.write(data)
-					sys.stdout.flush()
+		try:
+			while not quit:
+				if args.zynk_debug:
+					print(" --? Waiting for data..", file=sys.stderr)
+				(socks, _, _) = select.select([sys.stdin, sslSock], [], [])
+				for sock in socks:
+					if sock == sys.stdin:
+						data = sys.stdin.read()
+						if args.zynk_debug:
+							print(" >> Found bytes on STDIN", repr(data), file=sys.stderr)
+						if data == '':
+							quit = True
+							break
+						sslSock.sendall(data)
+					elif sock == sslSock:
+						data = sslSock.recv(4096)
+						if args.zynk_debug:
+							print(" >> Found bytes on socket", repr(data), file=sys.stderr)
+						if data == '':
+							quit = True
+							break
+						sys.stdout.write(data)
+						sys.stdout.flush()
+		except KeyboardInterrupt:
+			print("Aborting zynk transfer", file=sys.stderr)
+			sys.exit(10)
+		finally:
+			sslSock.close()
+
 
 		print("\nThank you for uzing zynk. Guten Tag.", file=sys.stderr)
 	else:
