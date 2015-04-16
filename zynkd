@@ -18,17 +18,16 @@ import re
 import sys
 import base64
 
-# FIXME clean up code, prints, etc.
-
-__VERSION__ = 0.1
+__VERSION__ = "0.1"
 DEFAULT_PORT = 9923
-
 
 class RClient(threading.Thread):
 	password = None
 	certpath = None
 	keypath = None
 	sslMethod = None
+	verbose = False
+	debug = False
 
 	def __init__(self, sock, addr):
 		threading.Thread.__init__(self)
@@ -37,19 +36,24 @@ class RClient(threading.Thread):
 		self._addr = addr
 		self._done = True
 
+		self._dataSent = 0
+		self._dataRecvd = 0
+
 	def run(self):
-		print("Starting %s:%s" % (self._addr))
+		if self.verbose:
+			print(" --> Starting thread for %s:%s" % (self._addr))
 
 		try:
 			self._talkToClient()
 		except Exception as e:
-			print(e)
+			print(" -- Error with client %s:%s:" % self._addr, e, file=sys.stderr)
 		finally:
 			try:
 				self._sock.close()
 			except:
 				pass
-			print("Done with %s:%s" % (self._addr))
+			if self.verbose:
+				print(" >> Client %s:%s disconnected" % (self._addr))
 			self._done = True
 
 	def _readline(self, maxChars):
@@ -69,9 +73,12 @@ class RClient(threading.Thread):
 		self._sslSock = sslSock
 
 		# ask for / check password
+		if self.debug:
+			print(" --> Sending password challenge")
 		sslSock.send("50 Password please!\n")
 		password = self._readline(256)
 		if password != self.password:
+			print(" --> Client %s:%s: invalid password" % self._addr)
 			sslSock.send("51 Invalid password\n")
 			sslSock.close()
 			return
@@ -94,19 +101,21 @@ class RClient(threading.Thread):
 			if len(cmdlist) < 2:
 				raise ValueError()
 		except:
-			print("Client %s:%s send garbage command" % self._addr)
+			print(" --> Client %s:%s send garbage command!" % self._addr)
 			sslSock.send("52 Could not parse json command\n")
 			sslSock.close()
 			return
 
 		if cmdlist[0] != "rsync":
+			print(" --> Client %s:%s: Invalid command (should be rsync ..., was" % self._addr, repr(" ".join(cmdlist)))
 			sslSock.send("53 The command should be 'rsync', not anything else\n")
 			sslSock.close()
 			return
 
 		# now we can start rsync
 		sslSock.send("20 OK, switching to rsync\n")
-		print("Running", cmdlist)
+		if self.verbose:
+			print(" --> Running", repr(" ".join(cmdlist)))
 
 		proc = subprocess.Popen(cmdlist, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 
@@ -117,20 +126,24 @@ class RClient(threading.Thread):
 
 		quit = False
 		while proc.poll() == None and not quit:
-			print("selecting")
+			if self.debug:
+				print(" ?? selecting for %s:%s" % self._addr)
 			(socks, _, _) = select.select([proc.stdout, sslSock], [], [])
-			print(" -->", socks)
+			if self.debug:
+				print(" -->", socks)
 			for sock in socks:
 				if sock == proc.stdout:
 					data = proc.stdout.read()
-					print("Sending data to socket", repr(data))
+					if self.debug:
+						print(" ==> Sending data to socket", repr(data))
 					if data == '':
 						quit = True
 						break
 					sslSock.send(data)
 				elif sock == sslSock:
 					data = sslSock.recv(10240)
-					print("Sending data to process", repr(data))
+					if self.debug:
+						print(" <== Sending data to process", repr(data))
 					if data == '':
 						quit = True
 						break
@@ -144,11 +157,13 @@ def _parser():
 	parser.add_argument("-p", "--port", default=DEFAULT_PORT, type=int, help="Port to listen on for zynk connections.")
 	parser.add_argument("-P", "--password", default=None, type=str, help="Password to use for authenticating clients. If not specified, one will be generated for you.")
 
-	# FIXME: use these keys ;)
 	parser.add_argument('-o', '--snakeoil', default=False, action="store_true", help="Use snakeoil certificates, often present on the system")
 
 	parser.add_argument('-k', '--key', default=None, type=str, help="Keyfile to use for SSL. If no cert is given with --cert the keyfile will also be searched for a cert")
 	parser.add_argument('-c', '--cert', default=None, type=str, help="Certfile to use for SSL")
+	parser.add_argument('-v', '--verbose', default=False, action="store_true", help="Be more verbose")
+	parser.add_argument('-d', '--debug', default=False, action="store_true", help="Be more 'debug level' verbose")
+	parser.add_argument('--version', action='version', version='%(prog)s ' + __VERSION__)
 
 	return parser
 
@@ -306,6 +321,10 @@ def main():
 		print("Warning: Only SSLv2/SSLv3 is available, connection might be insecure.")
 		RClient.sslMethod = ssl.PROTOCOL_SSLv23
 
+	RClient.verbose = args.verbose
+	if args.debug:
+		RClient.verbose = RClient.debug = True
+
 	# get a password
 	password = None
 	if args.password:
@@ -316,8 +335,6 @@ def main():
 
 	RClient.password = password
 
-	# TODO: generate certificates either with openssl or pyssl, whatever is there
-	# put them into tempfiles
 	certpath = None
 	keypath = None
 	certsGenerated = False
@@ -383,20 +400,22 @@ def main():
 
 			if srv in socks:
 				sock, addr = srv.accept()
-				print("New client, connceting from %s:%s :)" % addr)
+				print(" >> %s:%s connected to server" % addr)
 
 				client = RClient(sock, addr)
 				clients.append(client)
 
 				client.start()
 	except KeyboardInterrupt:
-		print("Thanks for sharing!")
+		print("Thank you for uzing zynk. Guten Tag.")
 	finally:
 		# delete certificates, if autogenerated
-		print("Cleaning up certs")
 		if certsGenerated:
+			if args.verbose:
+				print("Cleaning up certs")
 			for f in (certpath, keypath):
-				print("Certpath", f)
+				if args.verbose:
+					print(" --> Deleting", f)
 				if f and os.path.exists(f):
 					os.unlink(f)
 
