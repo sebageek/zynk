@@ -57,8 +57,7 @@ class RClient(threading.Thread):
 				self._sock.close()
 			except:
 				pass
-			if self.verbose:
-				print(" >> Client %s:%s disconnected" % (self._addr))
+			print(" >> %s:%s disconnected" % (self._addr))
 			self._done = True
 
 	def _readline(self, maxChars):
@@ -156,12 +155,14 @@ class RClient(threading.Thread):
 					proc.stdin.write(data)
 					proc.stdin.flush()
 
+		if self.verbose:
+			print(" --> No data anymore from %s:%s, shutting down rsync" % self._addr)
+
 		# tell rsync to shut down
 		proc.terminate()
 
 		# close connection to remote
 		sslSock.close()
-		print(" >> %s:%s disconnected" % self._addr)
 
 def _parser():
 	parser = argparse.ArgumentParser(prog="zynkd")
