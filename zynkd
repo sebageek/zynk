@@ -156,7 +156,10 @@ class RClient(threading.Thread):
 					proc.stdin.write(data)
 					proc.stdin.flush()
 
-		proc.wait()
+		# tell rsync to shut down
+		proc.terminate()
+
+		# close connection to remote
 		sslSock.close()
 		print(" >> %s:%s disconnected" % self._addr)
 
