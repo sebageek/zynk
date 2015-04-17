@@ -62,6 +62,11 @@ def main():
 	parser = _parser()
 	args, rsyncArgs = parser.parse_known_args()
 
+	# in case of no arguments, print zynk help instead of rsync help
+	if len(sys.argv) <= 1:
+		parser.print_help()
+		sys.exit(1)
+
 	if args.help:
 		parser.print_help()
 		sys.exit(0)
