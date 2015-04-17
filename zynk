@@ -26,7 +26,7 @@ def _parser():
 	parser = argparse.ArgumentParser(
 			prog="zynk",
 			description="Rsync wrapper with SSL + Auth",
-			epilog="Time to zynk zom viles, mein herr",
+			epilog="Time to zynk some viles, mein Herr",
 			add_help=False, # we need -h for human readable (rsync option)
 	)
 	parser.add_help = False
