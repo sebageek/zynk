@@ -166,15 +166,15 @@ class RClient(threading.Thread):
 
 def _parser():
 	parser = argparse.ArgumentParser(prog="zynkd")
-	parser.add_argument("-p", "--port", default=DEFAULT_PORT, type=int, help="Port to listen on for zynk connections.")
-	parser.add_argument("-P", "--password", default=None, type=str, help="Password to use for authenticating clients. If not specified, one will be generated for you.")
+	parser.add_argument("-p", "--port", default=DEFAULT_PORT, type=int, help="port to listen on for zynk connections.")
+	parser.add_argument("-P", "--password", default=None, type=str, help="password to use for authenticating clients. If not specified, one will be generated for you.")
 
-	parser.add_argument('-o', '--snakeoil', default=False, action="store_true", help="Use snakeoil certificates, often present on the system")
+	parser.add_argument('-o', '--snakeoil', default=False, action="store_true", help="use snakeoil certificates, often present on the system")
 
-	parser.add_argument('-k', '--key', default=None, type=str, help="Keyfile to use for SSL. If no cert is given with --cert the keyfile will also be searched for a cert")
-	parser.add_argument('-c', '--cert', default=None, type=str, help="Certfile to use for SSL")
-	parser.add_argument('-v', '--verbose', default=False, action="store_true", help="Be more verbose")
-	parser.add_argument('-d', '--debug', default=False, action="store_true", help="Be more 'debug level' verbose")
+	parser.add_argument('-k', '--key', default=None, type=str, help="keyfile to use for SSL. If no cert is given with --cert the keyfile will also be searched for a cert")
+	parser.add_argument('-c', '--cert', default=None, type=str, help="certfile to use for SSL")
+	parser.add_argument('-v', '--verbose', default=False, action="store_true", help="be more verbose")
+	parser.add_argument('-d', '--debug', default=False, action="store_true", help="be more 'debug level' verbose")
 	parser.add_argument('--version', action='version', version='%(prog)s ' + __VERSION__)
 
 	return parser

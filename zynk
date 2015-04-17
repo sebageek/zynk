@@ -34,14 +34,14 @@ def _parser():
 	# internal flag
 	parser.add_argument('--zynk-connect', default=False, action="store_true", help=argparse.SUPPRESS)
 
-	parser.add_argument('--zynk-password', '--zpw', default=None, type=str, help="Use this as password (no prompt will be displayed then)")
-	parser.add_argument('--zynk-fingerprint', '--zf', default=None, type=str, help="Use this to check the fingerprint (no prompt will be displayed then)")
-	parser.add_argument('--zynk-host', '--zh', default=None, type=str, help="Override host specified by rsync/on rsync commandline (useful for command copypasting)")
-	parser.add_argument('--zynk-port', '--zp', default=9923, type=int, help="Port of remote zynk server")
-	parser.add_argument('--zynk-verbose', default=False, action="store_true", help="Be more verbose about connection state / zsync connection")
-	parser.add_argument('--zynk-debug', default=False, action="store_true", help="Be more verbose about connection state / zsync connection")
-	parser.add_argument("--rsync-help", default=False, action="store_true", help="Show rsync help (or you could just call rsync by yourself")
-	parser.add_argument("--help", default=False, action="store_true", help="Show this help message and exit")
+	parser.add_argument('--zynk-password', '--zpw', default=None, type=str, help="use this as password (no prompt will be displayed then)")
+	parser.add_argument('--zynk-fingerprint', '--zf', default=None, type=str, help="use this to check the fingerprint (no prompt will be displayed then)")
+	parser.add_argument('--zynk-host', '--zh', default=None, type=str, help="override host specified by rsync/on rsync commandline (useful for command copypasting)")
+	parser.add_argument('--zynk-port', '--zp', default=9923, type=int, help="port of remote zynk server")
+	parser.add_argument('--zynk-verbose', default=False, action="store_true", help="be more verbose about connection state / zsync connection")
+	parser.add_argument('--zynk-debug', default=False, action="store_true", help="be more verbose about connection state / zsync connection")
+	parser.add_argument("--rsync-help", default=False, action="store_true", help="show rsync help (or you could just call rsync by yourself)")
+	parser.add_argument("--help", default=False, action="store_true", help="show this help message and exit")
 	parser.add_argument('--version', action='version', version='%(prog)s ' + __VERSION__)
 
 	return parser
