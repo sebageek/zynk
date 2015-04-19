@@ -1,0 +1,77 @@
+.TH ZYNK "1" "April 2015" "zynk 0.1" "User Commands"
+
+.SH NAME
+zynk \- file syncronization via rsync over SSL + authentication
+
+.SH SYNOPSIS
+usage: zynk [\fI\-\-zynk\-password PASSWORD\fR] [\fI\-\-zynk\-fingerprint FINGERPRINT\fR] [\fI\-\-zynk\-host HOST\fR] [\fI\-\-zynk\-port PORT\fR] [\fI\-\-zynk\-verbose\fR] [\fI\-\-zynk\-debug\fR] [\fI\-\-rsync\-help\fR] [\fI\-\-help\fR] [\fI\-\-version\fR]
+
+.SH DESCRIPTION
+zynk is a wrapper arround rsync to add extra SSL encryption and password authentication, while preserving all the advantages
+a e.g. SSH connection offers. zynk calls on execution rsync with itself as remote shell (via rsync \fI-e\fR). After establishing
+a connection to a remote zynkd server fingerprint checking is done (via prompt or \fB--zynk-fingerprint\fR) and then a
+password will be sent (via prompt or \fB--zynk-password\fR). Upon validation, rsync works normally as it would with ssh.
+Note that all rsync options are supported, as they will be passed through to rsync.
+
+.PP
+
+.SH COMMAND SUMMARY
+.TP
+\fB\-\-zynk\-password\fR PASSWORD, \fB\-\-zpw\fR PASSWORD
+use this as password (no prompt will be displayed
+then)
+.TP
+\fB\-\-zynk\-fingerprint\fR FINGERPRINT, \fB\-\-zf\fR FINGERPRINT
+use this to check the fingerprint (no prompt will bedisplayed then). 
+Fingerprint ca be a SHA1 fingerprint in the format aa:bb:cc:... or
+as a base64 string
+.TP
+\fB\-\-zynk\-host\fR ZYNK_HOST, \fB\-\-zh\fR ZYNK_HOST
+override host specified by rsync/on rsync commandline
+(useful for command copypasting). If given, the host passed down by rsync
+to zynk is ignored and replaced with this host. Therefore, a shorthand can
+be used as hosttarget when assembling the rsync command
+.TP
+\fB\-\-zynk\-port\fR ZYNK_PORT, \fB\-\-zp\fR ZYNK_PORT
+port of remote zynk server
+.TP
+\fB\-\-zynk\-verbose\fR
+be more verbose about connection state / zsync
+connection
+.TP
+\fB\-\-zynk\-debug\fR
+be more verbose about connection state / zsync
+connection
+.TP
+\fB\-\-rsync\-help\fR
+show rsync help (or you could just call rsync by
+yourself)
+.TP
+\fB\-\-help\fR
+show this help message and exit
+.TP
+\fB\-\-version\fR
+show program's version number and exit
+
+.SH EXAMPLES
+Copying a file to a remote host:
+.IP
+zynk file example.com:
+.PP
+Copy a file with known fingerprint and known password:
+.IP
+zynk --zpw testpass --zf Q3VyaW91eiwgbWVpbiBIZXJyPyA= file example.com:/tmp
+.PP
+Copy a file with host given via \fB--zynk-host\fR (note that the second host is not used anywhere anymore):
+.IP
+zynk --zynk-host example.com file remote:/tmp
+.PP
+
+.SH "SEE ALSO"
+.PP
+\fBzynkd\fP(1)
+.PP
+
+.SH AUTHOR
+zynk is developed by Sebastian Lohff <seba@someserver.de>
+

@@ -1,0 +1,59 @@
+.TH ZYNKD "1" "April 2015" "zynkd 0.1" "User Commands"
+
+.SH NAME
+zynkd \- file synchronization daemon for rsync over SSL + authentication
+
+
+.SH SYNOPSIS
+usage: zynkd [\fI\-h\fR] [\fI\-p PORT\fR] [\fI\-P PASSWORD\fR] [\fI\-o\fR] [\fI\-k KEY\fR] [\fI\-c CERT\fR] [\fI\-v\fR] [\fI\-d\fR] [\fI\-\-version\fR]
+
+.SH DESCRIPTION
+zynkd is the daemon for zynk. zynkd opens a port, handles SSL encryption, password authentication and afterwars
+executes the rsync server command by the remote host. If no certificate is specified with eiterh \fI--snakeoil\fR
+or \fI--key\fR/\fI--cert\fR, a certificate will be generated with either OpenSSL or OpenSSL python bindings.
+
+.SH WARNING
+zynkd allows the other end of the connection to execute ARBITRARY COMMANDS. zynkd checks, that actually
+rsync is called, but with rsync \fI-e\fR a shell command can be specified which can be any command.
+zynkd also allows full read/write access to everything the user running zynkd can access.
+Therefore, zynk should only used between trusted parties (normally just between yourself).
+
+.SH COMMAND SUMMARY
+.TP
+\fB\-h\fR, \fB\-\-help\fR
+show this help message and exit
+.TP
+\fB\-p\fR PORT, \fB\-\-port\fR PORT
+port to listen on for zynk connections.
+.TP
+\fB\-P\fR PASSWORD, \fB\-\-password\fR PASSWORD
+password to use for authenticating clients. If not
+specified, one will be generated for you.
+.TP
+\fB\-o\fR, \fB\-\-snakeoil\fR
+use snakeoil certificates, often present on the system
+.TP
+\fB\-k\fR KEY, \fB\-\-key\fR KEY
+keyfile to use for SSL. If no cert is given with
+\fB\-\-cert\fR the keyfile will also be searched for a cert
+.TP
+\fB\-c\fR CERT, \fB\-\-cert\fR CERT
+certfile to use for SSL
+.TP
+\fB\-v\fR, \fB\-\-verbose\fR
+be more verbose
+.TP
+\fB\-d\fR, \fB\-\-debug\fR
+be more 'debug level' verbose
+.TP
+\fB\-\-version\fR
+show program's version number and exit
+
+.SH "SEE ALSO"
+.PP
+\fBzynk\fP(1)
+.PP
+
+.SH AUTHOR
+zynk is developed by Sebastian Lohff <seba@someserver.de>
+
