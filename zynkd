@@ -111,8 +111,14 @@ class RClient(threading.Thread):
 			return
 
 		if cmdlist[0] != "rsync":
-			print(" --> Client %s:%s: Invalid command (should be rsync ..., was" % self._addr, repr(" ".join(cmdlist)))
+			print(" --> Client %s:%s: Invalid command (should be rsync ..., was %s)" % (self._addr[0], self._addr[1], repr(" ".join(cmdlist))))
 			sslSock.send("53 The command should be 'rsync', not anything else\n")
+			sslSock.close()
+			return
+
+		if "--server" not in cmdlist or "--sender" in cmdlist:
+			print(" --> Client %s:%s: Missing --server in command or found --sender, aborting" % self._addr)
+			sslSock.send("54 Missing --server in command or found --sender\n")
 			sslSock.close()
 			return
 
