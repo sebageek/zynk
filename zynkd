@@ -52,6 +52,9 @@ class RClient(threading.Thread):
 			self._talkToClient()
 		except Exception as e:
 			print(" -- Error with client %s:%s:" % self._addr, e, file=sys.stderr)
+			if self.verbose:
+				import traceback
+				traceback.print_exc(e)
 		finally:
 			try:
 				self._sock.close()
