@@ -168,7 +168,10 @@ class RClient(threading.Thread):
 			print(" --> No data anymore from %s:%s, shutting down rsync" % self._addr)
 
 		# tell rsync to shut down
-		proc.terminate()
+		try:
+			proc.terminate()
+		except OSError:
+			pass
 
 		# close connection to remote
 		sslSock.close()
