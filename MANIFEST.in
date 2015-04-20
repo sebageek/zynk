@@ -1,0 +1,3 @@
+include zynk.1
+include zynkd.1
+include ChangeLog
